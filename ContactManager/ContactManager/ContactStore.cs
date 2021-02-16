@@ -8,17 +8,19 @@ namespace ContactManager
 {
     public class ContactStore : IContactStore
     {
-        BinaryTree<Contact> contacts = new BinaryTree<Contact>();
 
         // State level cache
-        HashTable<string, BinaryTree<Contact>> stateCache = new HashTable<string, BinaryTree<Contact>>();
+        // HashTable<string, BinaryTree<Contact>> stateCache = new HashTable<string, BinaryTree<Contact>>();
+        SortedList<Contact> contacts = new SortedList<Contact>();    
 
         int nextId = 1;
 
+        //  As many data strucutures can implement IEnumerable interface .   
         public IEnumerable<Contact> Contacts
         {
             get
             {
+                // We can do this as soreted list implements IEnum
                 return contacts;
             }
         }
@@ -31,17 +33,8 @@ namespace ContactManager
             Contact withId = Contact.CreateWithId(id, contact);
 
             Log.Verbose("Add: adding new contact with ID {0} ({1} {2})", withId.ID, withId.FirstName, withId.LastName);
+
             contacts.Add(withId);
-
-            // Add to the state-level cache.
-            // If the state does not currently exist in the cache - add the binary tree
-            if (!stateCache.ContainsKey(withId.State))
-            {
-                stateCache.Add(withId.State, new BinaryTree<Contact>());
-            }
-
-            // now we know the state exists so add the contact
-            stateCache[withId.State].Add(withId);            
 
             Log.Verbose("Add: complete ({0})", withId.ID);
 
@@ -87,17 +80,21 @@ namespace ContactManager
 
         public bool Remove(Contact contact, out Contact removed)
         {
-            if (contacts.Remove(contact))
-            {
-                if (stateCache.ContainsKey(contact.State))
-                {
-                    // remove from the state-level cache
-                    stateCache[contact.State].Remove(contact);
-                }
+            //  For compering objects is Null now.  
+            if (contact.Equals(null)) {
 
-                Log.Info("Remove: removed contact {0} ({1} {2})", contact.ID.Value, contact.FirstName, contact.LastName);
-                removed = contact;
-                return true;
+                Log.Info("Remove Null contact provided" );
+                throw new ArgumentNullException("");
+
+            } else {
+
+                if (contacts.Find(contact, out removed))
+                {
+                    contacts.Remove(removed);
+                    Log.Info("Remove: removed contact {0} ({1} {2})", contact.ID.Value, contact.FirstName, contact.LastName);
+                    return true; 
+
+                }
             }
 
             Log.Warning("Remove: Contact not found.  No action taken.");
@@ -107,25 +104,9 @@ namespace ContactManager
 
         public IEnumerable<Contact> Search(ContactFieldFilter filter)
         {
-            Log.Verbose("Searching for contacts with filter: {0}", filter);
+            //Log.Verbose("Searching for contacts with filter: {0}", filter);
 
-            // If the file has a state component
-            // get the items from the cache instead of checking everything
-            if (filter.State.HasValue)
-            {
-                if (stateCache.ContainsKey(filter.State.Value))
-                {
-                    return filter.Apply(stateCache[filter.State.Value]);
-                }
-                else
-                {
-                    return new SortedList<Contact>();
-                }
-            }
-            else
-            {
-                return filter.Apply(this.Contacts);
-            }
+            return filter.Apply(this.Contacts);
         }
     }
 }
